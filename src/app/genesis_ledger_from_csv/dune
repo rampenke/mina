@@ -1,0 +1,8 @@
+(executable
+ (package genesis_ledger_from_csv)
+ (name genesis_ledger_from_csv)
+ (public_name genesis_ledger_from_csv)
+ (libraries async core_kernel logger)
+ (preprocessor_deps ../../config.mlh)
+ (instrumentation (backend bisect_ppx))
+ (preprocess (pps ppx_version ppx_coda ppx_sexp_conv ppx_let ppx_hash ppx_compare )))
