@@ -6,16 +6,16 @@ open Async
 let json_of_csv csv =
   (* delegatee is optional *)
   match String.split csv ~on:',' with
-  | [ recipient
+  | [ recipient_pk
     ; wallet_pk
     ; amount
     ; cliff_time_months
     ; cliff_amount
     ; unlock_frequency
     ; unlock_amount
-    ; delegatee ] ->
+    ; delegatee_pk ] ->
       ()
-  | [ recipient
+  | [ recipient_pk
     ; wallet_pk
     ; amount
     ; cliff_time_months
