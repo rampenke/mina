@@ -82,6 +82,7 @@ let main ~csv_file ~output_file:_ () =
           | None ->
               List.rev jsons
         in
+        let _headers = In_channel.input_line in_channel in
         go [] )
   in
   return ()
