@@ -2,7 +2,6 @@
 
 open Core_kernel
 open Async
-open Signature_lib
 open Mina_numbers
 
 let slot_duration_ms =
@@ -11,14 +10,22 @@ let slot_duration_ms =
     ~protocol_constants:Genesis_constants.compiled.protocol
   |> Consensus.Configuration.slot_duration
 
+(* a month = 30 days, for purposes of vesting *)
 let slots_per_month = 30 * 24 * 60 * 60 * 1000 / slot_duration_ms
 
-let runtime_config_account ~recipient ~wallet_pk ~amount ~cliff_time_months
-    ~cliff_amount ~unlock_frequency ~unlock_amount ~delegatee_pk_opt =
-  let pk_of_string = Public_key.Compressed.of_base58_check in
-  let pk = pk_of_string wallet_pk in
+let runtime_config_account ~logger ~recipient ~wallet_pk ~amount
+    ~initial_min_balance ~cliff_time_months ~cliff_amount ~unlock_frequency
+    ~unlock_amount ~delegatee_pk_opt =
+  [%log info] "Processing record for $recipient"
+    ~metadata:[("recipient", `String recipient)] ;
+  let pk = Some wallet_pk in
   let balance = Currency.Balance.of_string amount in
-  let cliff_time = Global_slot.of_int (cliff_time_months * slots_per_month) in
+  let initial_minimum_balance =
+    Currency.Balance.of_string initial_min_balance
+  in
+  let cliff_time =
+    Global_slot.of_int (Int.of_string cliff_time_months * slots_per_month)
+  in
   let cliff_amount = Currency.Amount.of_string cliff_amount in
   let vesting_period =
     match int_of_string unlock_frequency with
@@ -32,59 +39,82 @@ let runtime_config_account ~recipient ~wallet_pk ~amount ~cliff_time_months
   in
   let vesting_increment = Currency.Amount.of_string unlock_amount in
   let timing =
-    { Runtime_config.Json_layout.Accounts.Single.Timed.initial_minimum_balance
-    ; cliff_time
-    ; cliff_amount
-    ; vesting_period
-    ; vesting_increment }
+    Some
+      { Runtime_config.Json_layout.Accounts.Single.Timed.initial_minimum_balance
+      ; cliff_time
+      ; cliff_amount
+      ; vesting_period
+      ; vesting_increment }
   in
-  let delegate = Option.map delegatee_pk_opt ~f:pk_of_string in
+  let delegate = delegatee_pk_opt in
   { Runtime_config.Json_layout.Accounts.Single.default with
     pk
   ; balance
   ; timing
   ; delegate }
 
-let json_of_csv ~logger csv =
+let account_of_csv ~logger csv =
   (* delegatee is optional *)
   match String.split csv ~on:',' with
   | [ recipient
     ; wallet_pk
     ; amount
+    ; initial_min_balance
     ; cliff_time_months
     ; cliff_amount
     ; unlock_frequency
     ; unlock_amount
     ; delegatee_pk ] ->
-      ()
+      runtime_config_account ~logger ~recipient ~wallet_pk ~amount
+        ~initial_min_balance ~cliff_time_months ~cliff_amount ~unlock_frequency
+        ~unlock_amount ~delegatee_pk_opt:(Some delegatee_pk)
   | [ recipient
     ; wallet_pk
     ; amount
+    ; initial_min_balance
     ; cliff_time_months
     ; cliff_amount
     ; unlock_frequency
     ; unlock_amount ] ->
-      ()
+      runtime_config_account ~logger ~recipient ~wallet_pk ~amount
+        ~initial_min_balance ~cliff_time_months ~cliff_amount ~unlock_frequency
+        ~unlock_amount ~delegatee_pk_opt:None
   | _ ->
       failwithf "CSV line does not contain expected fields: %s" csv ()
 
-let main ~csv_file ~output_file:_ () =
+let main ~csv_file ~output_file () =
   let logger = Logger.create () in
-  let _jsons =
+  let accounts, num_accounts =
     In_channel.with_file csv_file ~f:(fun in_channel ->
         [%log info] "Opened CSV file $csv_file"
           ~metadata:[("csv_file", `String csv_file)] ;
-        let rec go jsons =
+        let rec go accounts num_accounts =
           match In_channel.input_line in_channel with
           | Some line ->
-              let json = json_of_csv ~logger line in
-              go (json :: jsons)
+              let account =
+                try account_of_csv ~logger line
+                with exn ->
+                  [%log fatal] "Could not process record, error: $error"
+                    ~metadata:
+                      [ ("error", `String (Exn.to_string exn))
+                      ; ("csv", `String line) ] ;
+                  Core_kernel.exit 1
+              in
+              go (account :: accounts) (num_accounts + 1)
           | None ->
-              List.rev jsons
+              (List.rev accounts, num_accounts)
         in
+        (* skip first line *)
         let _headers = In_channel.input_line in_channel in
-        go [] )
+        go [] 0 )
   in
+  [%log info] "Processed %d records, writing output JSON" num_accounts ;
+  Out_channel.with_file output_file ~f:(fun out_channel ->
+      let json =
+        `List (List.map accounts ~f:Runtime_config.Accounts.Single.to_yojson)
+      in
+      Out_channel.output_string out_channel (Yojson.Safe.to_string json) ;
+      Out_channel.newline out_channel ) ;
   return ()
 
 let () =
