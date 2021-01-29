@@ -21,7 +21,12 @@ let runtime_config_account ~logger ~recipient ~wallet_pk ~amount
   let pk = Some wallet_pk in
   let balance = Currency.Balance.of_string amount in
   let initial_minimum_balance =
-    Currency.Balance.of_string initial_min_balance
+    (* if omitted in the CSV, use balance *)
+    match initial_min_balance with
+    | "" ->
+        balance
+    | _ ->
+        Currency.Balance.of_string initial_min_balance
   in
   let cliff_time =
     Global_slot.of_int (Int.of_string cliff_time_months * slots_per_month)
