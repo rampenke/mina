@@ -13,25 +13,40 @@ let slot_duration_ms =
 (* a month = 30 days, for purposes of vesting *)
 let slots_per_month = 30 * 24 * 60 * 60 * 1000 / slot_duration_ms
 
+let valid_mina_amount s =
+  String.length s <= 9 && String.for_all s ~f:Char.is_digit
+
 let runtime_config_account ~logger ~recipient ~wallet_pk ~amount
     ~initial_min_balance ~cliff_time_months ~cliff_amount ~unlock_frequency
     ~unlock_amount ~delegatee_pk_opt =
   [%log info] "Processing record for $recipient"
     ~metadata:[("recipient", `String recipient)] ;
   let pk = Some wallet_pk in
-  let balance = Currency.Balance.of_string amount in
+  let balance =
+    if valid_mina_amount amount then Currency.Balance.of_string amount
+    else failwithf "Amount is not a valid Mina amount: %s" amount ()
+  in
   let initial_minimum_balance =
     (* if omitted in the CSV, use balance *)
     match initial_min_balance with
     | "" ->
         balance
     | _ ->
-        Currency.Balance.of_string initial_min_balance
+        if valid_mina_amount initial_min_balance then
+          Currency.Balance.of_string initial_min_balance
+        else
+          failwithf "Initial minimum balance is not a valid Mina amount: %s"
+            initial_min_balance ()
   in
   let cliff_time =
     Global_slot.of_int (Int.of_string cliff_time_months * slots_per_month)
   in
-  let cliff_amount = Currency.Amount.of_string cliff_amount in
+  let cliff_amount =
+    if valid_mina_amount cliff_amount then
+      Currency.Amount.of_string cliff_amount
+    else
+      failwithf "Cliff amount is not a valid Mina amount: %s" cliff_amount ()
+  in
   let vesting_period =
     match int_of_string unlock_frequency with
     | 0 ->
@@ -42,7 +57,12 @@ let runtime_config_account ~logger ~recipient ~wallet_pk ~amount
         failwithf "Expected unlock frequency to be 0 or 1, got %s"
           unlock_frequency ()
   in
-  let vesting_increment = Currency.Amount.of_string unlock_amount in
+  let vesting_increment =
+    if valid_mina_amount unlock_amount then
+      Currency.Amount.of_string unlock_amount
+    else
+      failwithf "Unlock amount is not a valid Mina amount: %s" unlock_amount ()
+  in
   let timing =
     Some
       { Runtime_config.Json_layout.Accounts.Single.Timed.initial_minimum_balance
