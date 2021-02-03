@@ -3,6 +3,29 @@
 open Core_kernel
 open Async
 open Mina_numbers
+open Signature_lib
+
+let accounts_tbl : unit String.Table.t = String.Table.create ()
+
+let add_account pk =
+  match String.Table.add accounts_tbl ~key:pk ~data:() with
+  | `Ok ->
+      ()
+  | `Duplicate ->
+      failwithf "Duplicate entry for public key %s" pk ()
+
+let delegates_tbl : unit String.Table.t = String.Table.create ()
+
+let add_delegate pk =
+  match String.Table.add delegates_tbl ~key:pk ~data:() with
+  | `Ok ->
+      ()
+  | `Duplicate ->
+      failwithf "Duplicate entry for delegate public key %s" pk ()
+
+let validate_pk pk =
+  try ignore (Public_key.Compressed.of_base58_check_exn pk)
+  with _ -> failwithf "Invalid Base58Check for public key: %s" pk ()
 
 let slot_duration_ms =
   Consensus.Configuration.t
@@ -16,12 +39,43 @@ let slots_per_month = 30 * 24 * 60 * 60 * 1000 / slot_duration_ms
 let valid_mina_amount s =
   String.length s <= 9 && String.for_all s ~f:Char.is_digit
 
+(* for delegatee that does not have an entry in the CSV,
+   generate an entry with zero balance, untimed
+*)
+let generate_delegate_account delegate_pk =
+  let pk = Some delegate_pk in
+  let balance = Currency.Balance.zero in
+  let timing = None in
+  let delegate = None in
+  { Runtime_config.Json_layout.Accounts.Single.default with
+    pk
+  ; balance
+  ; timing
+  ; delegate }
+
+let generate_missing_delegate_accounts () =
+  (* for each delegate that doesn't have a corresponding account,
+     generate an account
+  *)
+  let delegates = String.Table.keys delegates_tbl in
+  let missing_delegates =
+    List.filter delegates ~f:(fun delegate ->
+        not (String.Table.mem accounts_tbl delegate) )
+  in
+  let delegate_accounts =
+    List.map missing_delegates ~f:generate_delegate_account
+  in
+  (delegate_accounts, List.length delegate_accounts)
+
 let runtime_config_account ~logger ~recipient ~wallet_pk ~amount
     ~initial_min_balance ~cliff_time_months ~cliff_amount ~unlock_frequency
     ~unlock_amount ~delegatee_pk_opt =
   [%log info] "Processing record for $recipient"
     ~metadata:[("recipient", `String recipient)] ;
+  (* validate wallet public key *)
+  validate_pk wallet_pk ;
   let pk = Some wallet_pk in
+  add_account wallet_pk ;
   let balance =
     if valid_mina_amount amount then Currency.Balance.of_string amount
     else failwithf "Amount is not a valid Mina amount: %s" amount ()
@@ -71,7 +125,10 @@ let runtime_config_account ~logger ~recipient ~wallet_pk ~amount
       ; vesting_period
       ; vesting_increment }
   in
+  (* validate delegate *)
+  ignore (Option.map delegatee_pk_opt ~f:validate_pk) ;
   let delegate = delegatee_pk_opt in
+  ignore (Option.map delegatee_pk_opt ~f:add_delegate) ;
   { Runtime_config.Json_layout.Accounts.Single.default with
     pk
   ; balance
@@ -109,7 +166,7 @@ let account_of_csv ~logger csv =
 
 let main ~csv_file ~output_file () =
   let logger = Logger.create () in
-  let accounts, num_accounts =
+  let provided_accounts, num_accounts =
     In_channel.with_file csv_file ~f:(fun in_channel ->
         [%log info] "Opened CSV file $csv_file"
           ~metadata:[("csv_file", `String csv_file)] ;
@@ -133,7 +190,13 @@ let main ~csv_file ~output_file () =
         let _headers = In_channel.input_line in_channel in
         go [] 0 )
   in
-  [%log info] "Processed %d records, writing output JSON" num_accounts ;
+  [%log info] "Processed %d records" num_accounts ;
+  let generated_accounts, num_generated =
+    generate_missing_delegate_accounts ()
+  in
+  [%log info] "Generated %d delegate accounts" num_generated ;
+  [%log info] "Writing JSON output" ;
+  let accounts = provided_accounts @ generated_accounts in
   Out_channel.with_file output_file ~f:(fun out_channel ->
       let json =
         `List (List.map accounts ~f:Runtime_config.Accounts.Single.to_yojson)
