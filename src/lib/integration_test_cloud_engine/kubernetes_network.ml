@@ -9,7 +9,18 @@ module Node = struct
   type t =
     {cluster: string; namespace: string; pod_id: string; node_graphql_port: int}
 
+  let id {pod_id; _} = pod_id
+
   let base_kube_args t = ["--cluster"; t.cluster; "--namespace"; t.namespace]
+
+  let node_to_string (n : t) : String.t =
+    Format.sprintf
+      "{cluster: %s; namespace: %s; pod_id: %s; node_graphql_port: %d}"
+      n.cluster n.namespace n.pod_id n.node_graphql_port
+
+  let node_list_to_string (nl : t list) : String.t =
+    Format.sprintf "[ %s ]"
+      (String.concat ~sep:",  " (List.map nl ~f:node_to_string))
 
   let run_in_container node cmd =
     let base_args = base_kube_args node in
@@ -20,7 +31,8 @@ module Node = struct
         base_kube_cmd base_kube_cmd node.pod_id cmd
     in
     let%bind cwd = Unix.getcwd () in
-    Cmd_util.run_cmd_exn cwd "sh" ["-c"; kubectl_cmd]
+    let%map _ = Cmd_util.run_cmd_exn cwd "sh" ["-c"; kubectl_cmd] in
+    ()
 
   let start ~fresh_state node : unit Malleable_error.t =
     let open Malleable_error.Let_syntax in
@@ -341,8 +353,7 @@ end
 
 type t =
   { namespace: string
-  ; constraint_constants: Genesis_constants.Constraint_constants.t
-  ; genesis_constants: Genesis_constants.t
+  ; constants: Test_config.constants
   ; block_producers: Node.t list
   ; snark_coordinators: Node.t list
   ; archive_nodes: Node.t list
@@ -350,9 +361,11 @@ type t =
   ; keypairs: Signature_lib.Keypair.t list
   ; nodes_by_app_id: Node.t String.Map.t }
 
-let constraint_constants {constraint_constants; _} = constraint_constants
+let constants {constants; _} = constants
 
-let genesis_constants {genesis_constants; _} = genesis_constants
+let constraint_constants {constants; _} = constants.constraints
+
+let genesis_constants {constants; _} = constants.genesis
 
 let block_producers {block_producers; _} = block_producers
 

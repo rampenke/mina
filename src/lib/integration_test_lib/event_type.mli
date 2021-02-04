@@ -43,6 +43,7 @@ module Block_produced : sig
 
   include Event_type_intf with type t := t
 
+  (*
   type aggregated =
     {last_seen_result: t; blocks_generated: int; snarked_ledgers_generated: int}
   [@@deriving to_yojson]
@@ -52,6 +53,7 @@ module Block_produced : sig
   val init_aggregated : t -> aggregated
 
   val aggregate : aggregated -> t -> aggregated
+  *)
 end
 
 module Breadcrumb_added : sig
@@ -67,6 +69,8 @@ type 'a t =
       : Transition_frontier_diff_application.t t
   | Block_produced : Block_produced.t t
   | Breadcrumb_added : Breadcrumb_added.t t
+
+val to_string : 'a t -> string
 
 type existential = Event_type : 'a t -> existential
 [@@deriving sexp, to_yojson]

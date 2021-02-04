@@ -1,0 +1,78 @@
+[
+  {
+    "terraform": {
+      "required_version": "~> 0.13.0",
+      "backend": {
+        "s3": {
+          "key": "terraform-natha-block-production-4135.tfstate",
+          "encrypt": true,
+          "region": "us-west-2",
+          "bucket": "o1labs-terraform-state",
+          "acl": "bucket-owner-full-control"
+        }
+      }
+    }
+  },
+  { "provider": { "aws": { "region": "us-west-2" } } },
+  {
+    "provider": {
+      "google": {
+        "region": "us-west1",
+        "alias": "google-us-east1",
+        "project": "o1labs-192920",
+        "zone": "us-east1b"
+      }
+    }
+  },
+  {
+    "module": {
+      "testnet_east": {
+        "providers": { "google": "google.google-us-east1" },
+        "source": "../../modules/kubernetes/testnet",
+        "generate_and_upload_artifacts": false,
+        "cluster_name": "mina-integration-west1",
+        "cluster_region": "us-west1",
+        "testnet_name": "natha-block-production-4135",
+        "k8s_context": "gke_o1labs-192920_us-west1_mina-integration-west1",
+        "coda_image":
+          "codaprotocol/coda-daemon-puppeteered:0.2.12-compatible-3c03d3d",
+        "coda_agent_image": "codaprotocol/coda-user-agent:0.1.5",
+        "coda_bots_image": "codaprotocol/coda-bots:0.0.13-beta-1",
+        "coda_points_image": "codaprotocol/coda-points-hack:32b.4",
+        "runtime_config":
+          "{\"daemon\":{\"txpool_max_size\":3000},\"genesis\":{\"k\":20,\"delta\":0,\"slots_per_epoch\":480,\"slots_per_sub_window\":2,\"sub_windows_per_window\":2,\"genesis_state_timestamp\":\"2021-02-04 01:35:49.327605Z\"},\"proof\":{\"level\":\"full\"},\"ledger\":{\"accounts\":[{\"pk\":\"B62qjJwgq7kNXYHXQsMeyiMWL7fHsnPeuAiPfYd3yTor3eKpK8VV1gG\",\"balance\":\"1000\"}]}}",
+        "coda_faucet_amount": "10000000000",
+        "coda_faucet_fee": "100000000",
+        "seed_zone": "us-west1-a",
+        "seed_region": "us-west1",
+        "log_level": "Trace",
+        "log_txn_pool_gossip": true,
+        "block_producer_key_pass": "naughty blue worm",
+        "block_producer_starting_host_port": 10001,
+        "block_producer_configs": [
+          {
+            "name": "test-block-producer-1",
+            "class": "test",
+            "id": "0",
+            "private_key_secret": "test-keypair-0",
+            "enable_gossip_flooding": false,
+            "run_with_user_agent": false,
+            "run_with_bots": false,
+            "enable_peer_exchange": false,
+            "isolated": false,
+            "libp2p_secret": ""
+          }
+        ],
+        "snark_worker_replicas": 0,
+        "snark_worker_fee": "0.025",
+        "snark_worker_public_key":
+          "B62qiy32p8kAKnny8ZFwoMhYpBppM1DWVCqAPBYNcXnsAHhnfAAuXgg",
+        "snark_worker_host_port": 10002,
+        "agent_min_fee": "0.06",
+        "agent_max_fee": "0.1",
+        "agent_min_tx": "0.0015",
+        "agent_max_tx": "0.0015"
+      }
+    }
+  }
+]

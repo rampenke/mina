@@ -6,6 +6,11 @@ module Block_producer = struct
   type t = {balance: string; timing: Mina_base.Account_timing.t}
 end
 
+type constants =
+  { constraints: Genesis_constants.Constraint_constants.t
+  ; genesis: Genesis_constants.t }
+[@@deriving to_yojson]
+
 type t =
   { k: int
   ; delta: int

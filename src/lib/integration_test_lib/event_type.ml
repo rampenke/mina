@@ -118,6 +118,7 @@ module Block_produced = struct
     ; snarked_ledger_generated: bool }
   [@@deriving to_yojson]
 
+  (*
   let empty =
     {block_height= 0; epoch= 0; global_slot= 0; snarked_ledger_generated= false}
 
@@ -145,6 +146,7 @@ module Block_produced = struct
             aggregated.snarked_ledgers_generated + 1
           else aggregated.snarked_ledgers_generated ) }
     else aggregated
+  *)
 
   (*TODO: Once we transition to structured events, this should call Structured_log_event.parse_exn and match on the structured events that it returns.*)
   let parse message =
@@ -214,6 +216,8 @@ let existential_to_string = function
   | Event_type Breadcrumb_added ->
       "Breadcrumb_added"
 
+let to_string e = existential_to_string (Event_type e)
+
 let existential_of_string_exn = function
   | "Log_error" ->
       Event_type Log_error
@@ -275,7 +279,7 @@ let event_type_module : type a. a t -> (module Event_type_intf with type t = a)
 let event_to_yojson event =
   let (Event (t, d)) = event in
   let (module Type) = event_type_module t in
-  Type.to_yojson d
+  `Assoc [(to_string t, Type.to_yojson d)]
 
 let to_structured_event_id event_type =
   let (Event_type t) = event_type in

@@ -2,13 +2,17 @@ open Core
 open Integration_test_lib
 open Currency
 
-module Make (Engine : Engine_intf) = struct
+module Make (Inputs : Intf.Test.Inputs_intf) = struct
+  open Inputs
   open Engine
+  open Dsl
 
   (* TODO: find a way to avoid this type alias (first class module signatures restrictions make this tricky) *)
   type network = Network.t
 
-  type log_engine = Log_engine.t
+  type node = Network.Node.t
+
+  type dsl = Dsl.t
 
   let config =
     let open Test_config in
@@ -23,7 +27,7 @@ module Make (Engine : Engine_intf) = struct
     in
     { default with
       block_producers=
-        [ {balance= "1000"; timing= Untimed}
+        [ {balance= "1000"; timing}
         ; {balance= "1000"; timing}
         ; {balance= "1000"; timing} ]
     ; num_snark_workers= 0 }
@@ -41,17 +45,15 @@ module Make (Engine : Engine_intf) = struct
     | [] ->
         str
 
-  let run network log_engine =
+  let run network t =
     let open Network in
     let open Malleable_error.Let_syntax in
     let logger = Logger.create () in
     [%log info] "mina_peers_test: started" ;
-    let wait_for_init_partial node =
-      Log_engine.wait_for_init node log_engine
-    in
     let peer_list = Network.block_producers network in
     let%bind () =
-      Malleable_error.List.iter peer_list ~f:wait_for_init_partial
+      Malleable_error.List.iter peer_list ~f:(fun node ->
+          wait_for t (Wait_condition.node_to_initialize node) )
     in
     [%log info] "mina_peers_test: done waiting for initialization" ;
     (* [%log info] "peers_list"
@@ -80,8 +82,11 @@ module Make (Engine : Engine_intf) = struct
         (String.concat ~sep:" " visible_peers_of_node) ;
       List.iter expected_peers_of_node ~f:(fun p ->
           assert (List.exists visible_peers_of_node ~f:(String.equal p)) )
-      (* loop through visible_peers_of_node and make sure everything in that list is also in expected_peers_of_node *)
+      (* loop through expected_peers_of_node and make sure everything in that list is also in visible_peers_of_node  *)
     in
     [%log info] "mina_peers_test: making assertions" ;
-    return (List.iter query_results ~f:test_compare_func)
+    let result = return (List.iter query_results ~f:test_compare_func) in
+    [%log info]
+      "mina_peers_test: assertions passed, peers test successfully ran!!!" ;
+    result
 end
