@@ -1,5 +1,6 @@
 (* archive_node.ml -- generate data from archive node in cloud *)
 
+open Core_kernel
 open Integration_test_lib
 
 module Make (Inputs : Intf.Test.Inputs_intf) = struct
@@ -26,22 +27,33 @@ module Make (Inputs : Intf.Test.Inputs_intf) = struct
 
   let expected_error_event_reprs = []
 
+  (* number of minutes to let the network run, after initialization *)
+  let runtime_min = 15.
+
   let run network t =
     let open Malleable_error.Let_syntax in
     Core_kernel.eprintf "NUM BLOCK PRODUCERS: %d\n%!"
       (List.length (Network.block_producers network)) ;
     Core_kernel.eprintf "NUM ARCHIVE NODES: %d\n%!"
       (List.length (Network.archive_nodes network)) ;
-    let block_producer = Caml.List.nth (Network.block_producers network) 0 in
-    let%bind () =
-      wait_for t (Wait_condition.node_to_initialize block_producer)
-    in
-    let node = Core_kernel.List.nth_exn (Network.block_producers network) 0 in
     let logger = Logger.create () in
-    (* wait for initialization *)
-    let%bind () = wait_for t (Wait_condition.node_to_initialize node) in
-    [%log info] "send_payment_test: done waiting for initialization" ;
-    (* same keypairs used by Coda_automation to populate the ledger *)
+    let block_producers = Network.block_producers network in
+    [%log info] "archive node test: waiting for block producers to initialize" ;
+    let%bind () =
+      Malleable_error.List.iter block_producers ~f:(fun bp ->
+          wait_for t (Wait_condition.node_to_initialize bp) )
+    in
+    [%log info] "archive node test: waiting for archive node to initialize" ;
+    let archive_node = List.hd_exn @@ Network.archive_nodes network in
+    let%bind () =
+      wait_for t (Wait_condition.node_to_initialize archive_node)
+    in
+    [%log info] "archive node test: running network for %0.1f minutes"
+      runtime_min ;
+    let%bind.Async.Deferred.Let_syntax () =
+      Async.after (Time.Span.of_min runtime_min)
+    in
+    [%log info] "archive node test: done running network" ;
     let keypairs = Lazy.force Mina_base.Sample_keypairs.keypairs in
     (* send the payment *)
     let sender, _sk1 = keypairs.(0) in
