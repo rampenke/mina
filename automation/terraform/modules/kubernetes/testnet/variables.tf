@@ -181,6 +181,22 @@ variable "block_producer_configs" {
   default = []
 }
 
+variable "archive_node_configs" {
+  type = list(
+    object({
+      name = string,
+      class = string,
+      libp2p_secret = string,
+      enable_gossip_flooding = bool,
+      enable_peer_exchange = bool,
+      isolated = bool,
+      run_with_user_agent = bool,
+      run_with_bots = bool
+    })
+  )
+  default = []
+}
+
 # Snark Worker Vars
 
 variable "snark_worker_replicas" {

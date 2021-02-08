@@ -30,6 +30,7 @@ module Make (Inputs : Intf.Test.Inputs_intf) = struct
         [ {balance= "1000"; timing}
         ; {balance= "1000"; timing}
         ; {balance= "1000"; timing} ]
+    ; num_archive_nodes= 2
     ; num_snark_workers= 0 }
 
   let expected_error_event_reprs = []
