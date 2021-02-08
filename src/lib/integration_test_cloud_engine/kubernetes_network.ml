@@ -349,6 +349,13 @@ module Node = struct
     [%log info] "Sent payment"
       ~metadata:[("user_command_id", `String user_cmd_id)] ;
     ()
+
+  let dump_archive_data ~logger node ~data_file =
+    [%log info] "Dumping archive data to file %s" data_file ;
+    let%bind.Deferred.Let_syntax () =
+      run_in_container node "pg_dump --create --no-owner archiver"
+    in
+    Malleable_error.return ()
 end
 
 type t =

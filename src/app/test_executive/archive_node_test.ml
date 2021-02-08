@@ -54,20 +54,9 @@ module Make (Inputs : Intf.Test.Inputs_intf) = struct
       Async.after (Time.Span.of_min runtime_min)
     in
     [%log info] "archive node test: done running network" ;
-    let keypairs = Lazy.force Mina_base.Sample_keypairs.keypairs in
-    (* send the payment *)
-    let sender, _sk1 = keypairs.(0) in
-    let receiver, _sk2 = keypairs.(1) in
-    let amount = Currency.Amount.of_int 200_000_000 in
-    let fee = Currency.Fee.of_int 10_000_000 in
-    let%bind () =
-      Network.Node.send_payment ~logger node ~sender ~receiver ~amount ~fee
-    in
-    (* confirm payment *)
     let%map () =
-      wait_for t
-        (Wait_condition.payment_to_be_included_in_frontier ~sender ~receiver
-           ~amount)
+      Network.Node.dump_archive_data ~logger archive_node
+        ~data_file:"archiver.sql"
     in
-    [%log info] "send_payment_test: succesfully completed"
+    [%log info] "archive node test: succesfully completed"
 end
