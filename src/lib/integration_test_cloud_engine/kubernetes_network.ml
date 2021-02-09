@@ -350,12 +350,25 @@ module Node = struct
       ~metadata:[("user_command_id", `String user_cmd_id)] ;
     ()
 
-  let dump_archive_data ~logger node ~data_file =
-    [%log info] "Dumping archive data to file %s" data_file ;
-    let%bind.Deferred.Let_syntax () =
-      run_in_container node "pg_dump --create --no-owner archiver"
+  let dump_archive_data ~logger (node : t) ~data_file =
+    [%log info] "Collecting archive data" ;
+    let args =
+      [ "--create"
+      ; "--no-owner"
+      ; "--port"
+      ; Int.to_string node.archive_node_port
+      ; "--dbname"
+      ; "archiver" ]
     in
-    Malleable_error.return ()
+    let%map.Malleable_error.Let_syntax sql_lines =
+      let%bind.Deferred.Let_syntax sql_lines_or_error =
+        Process.run_lines ~prog:"pg_dump" ~args ()
+      in
+      Malleable_error.of_or_error_hard sql_lines_or_error
+    in
+    [%log info] "Dumping archive data to file %s" data_file ;
+    Out_channel.with_file data_file ~f:(fun out_ch ->
+        Out_channel.output_lines out_ch sql_lines )
 end
 
 type t =
