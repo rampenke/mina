@@ -54,7 +54,6 @@ module Make (Inputs : Intf.Test.Inputs_intf) = struct
       Async.after (Time.Span.of_min runtime_min)
     in
     [%log info] "archive node test: done running network" ;
-    (* TODO: use "ingress" to make Postgresql port available locally *)
     let%map () =
       Network.Node.dump_archive_data ~logger archive_node
         ~data_file:"archiver.sql"
