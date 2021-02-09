@@ -265,7 +265,7 @@ module Network_config = struct
   let to_terraform network_config =
     let open Terraform in
     [ Block.Terraform
-        { Block.Terraform.required_version= "~> 0.13.0"
+        { Block.Terraform.required_version= "~> 0.14.5"
         ; backend=
             Backend.S3
               { Backend.S3.key=
@@ -382,20 +382,18 @@ module Network_manager = struct
     let testnet_log_filter =
       Network_config.testnet_log_filter network_config
     in
-    let cons_node pod_id port =
+    let cons_node pod_id =
       { Kubernetes_network.Node.cluster= network_config.cluster_id
-      ; Kubernetes_network.Node.namespace=
+      ; testnet_name= network_config.terraform.testnet_name
+      ; namespace=
           network_config.terraform.testnet_name
-      ; Kubernetes_network.Node.pod_id
-      ; Kubernetes_network.Node.node_graphql_port= port }
+      ; pod_id }
     in
     (* we currently only deploy 1 coordinator per deploy (will be configurable later) *)
-    let snark_coordinator_nodes = [cons_node "snark-coordinator-1" 3085] in
+    let snark_coordinator_nodes = [cons_node "snark-coordinator-1"] in
     let block_producer_nodes =
       List.init (List.length network_config.terraform.block_producer_configs)
-        ~f:(fun i ->
-          cons_node (Printf.sprintf "test-block-producer-%d" (i + 1)) (i + 3086)
-      )
+        ~f:(fun i -> cons_node (Printf.sprintf "test-block-producer-%d" (i + 1)))
     in
     let nodes_by_app_id =
       let all_nodes = snark_coordinator_nodes @ block_producer_nodes in
@@ -453,13 +451,11 @@ module Network_manager = struct
       ; testnet_log_filter= t.testnet_log_filter
       ; keypairs= t.keypairs }
     in
+    let nodes_to_string = Fn.compose (String.concat ~sep:", ") (List.map ~f:Kubernetes_network.Node.id) in
     [%log' info t.logger] "Network deployed" ;
-    [%log' info t.logger] "snark_coordinators_list: %s"
-      (Kubernetes_network.Node.node_list_to_string result.snark_coordinators) ;
-    [%log' info t.logger] "block_producers_list: %s"
-      (Kubernetes_network.Node.node_list_to_string result.block_producers) ;
-    [%log' info t.logger] "archive_nodes_list: %s"
-      (Kubernetes_network.Node.node_list_to_string result.archive_nodes) ;
+    [%log' info t.logger] "snark coordinators: %s" (nodes_to_string result.snark_coordinators) ;
+    [%log' info t.logger] "block producers: %s" (nodes_to_string result.block_producers) ;
+    [%log' info t.logger] "archive nodes: %s" (nodes_to_string result.archive_nodes) ;
     result
 
   let destroy t =
