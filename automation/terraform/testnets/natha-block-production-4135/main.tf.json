@@ -1,7 +1,7 @@
 [
   {
     "terraform": {
-      "required_version": "~> 0.13.0",
+      "required_version": "~> 0.14.0",
       "backend": {
         "s3": {
           "key": "terraform-natha-block-production-4135.tfstate",
@@ -32,6 +32,7 @@
         "generate_and_upload_artifacts": false,
         "cluster_name": "mina-integration-west1",
         "cluster_region": "us-west1",
+        "aws_route53_zone_id": "/hostedzone/ZJPR9NA6W9M7F",
         "testnet_name": "natha-block-production-4135",
         "k8s_context": "gke_o1labs-192920_us-west1_mina-integration-west1",
         "coda_image":
